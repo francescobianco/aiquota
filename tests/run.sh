@@ -94,7 +94,9 @@ suite() {
 	hasnt "unselected not shown" "$out" "OpenCode"
 	grep -q GO_SECRET "$FAKE_LOG.stdin" && ko "unselected account was queried" || ok
 	title=$(cat "$HOME/.cache/aiquota/title")
-	case $title in "Freebuff Free 75%"*"Claude Max 5x 30%"*"ChatGPT Plus 12%"*) ok ;; *) ko "title has tightest window" "$title" ;; esac
+	case $title in "Freebuff 75% | Claude 30% "*" | ChatGPT 12% "*) ok ;; *) ko "title is short, with the tightest window" "$title" ;; esac
+	hasnt "title has no plan" "$title" "Max 5x"
+	hasnt "no reset above half" "$title" "Freebuff 75% 2"
 
 	# Secrets.
 	fresh; aq --display=claude,codex,copilot,opencode,freebuff,gemini >/dev/null
@@ -189,7 +191,7 @@ hook_test() {
 	raw=$(printf 'exit\n' | AIQUOTA_DISPLAY='' timeout 20 script -qec "$cmdline" /dev/null 2>&1)
 	SH="hook $name"
 	has "banner" "$raw" "Claude"
-	has "title set" "$raw" ";Claude Max 5x 30%"
+	has "title set" "$raw" ";Claude 30%"
 }
 
 if [ $# -eq 0 ]; then set -- dash "busybox sh" "bash --posix"; fi
@@ -207,7 +209,7 @@ if script -qec true /dev/null >/dev/null 2>&1; then
 "PS1='\\[\\e]0;user@host: \\w\\a\\]\\u@\\h:\\w\\$ '
 eval \"\$($BIN init bash --display=claude)\""
 	last=$(printf '%s' "$raw" | LC_ALL=C sed 's/\x1b]/\n&/g' | grep -a "^$(printf '\033')]" | tail -1)
-	has "bash: last title is ours" "$last" "Claude Max 5x"
+	has "bash: last title is ours" "$last" "Claude 30%"
 	after=$(printf '%s\n' "$raw" | LC_ALL=C sed 's/\x1b\[[0-9;?]*[a-zA-Z]//g' | tr -d '\r' | awk '/Claude Max 5x \[5h/ && !done { getline x; print "[" x "]"; done = 1 }')
 	eq "bash: empty line before the first prompt" "$after" "[]"
 	hook_test zsh "zsh -i" "$WORK/home/.zshrc" "eval \"\$($BIN init zsh --display=claude)\""

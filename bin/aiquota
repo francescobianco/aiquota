@@ -701,7 +701,6 @@ render() {
 		out = ""
 		for (i = 1; i <= c; i++) {
 			if (state[i] == "hidden" && mode != "table") continue
-			label = name[i] (plan[i] != "" ? " " plan[i] : "")
 			if (mode == "table") {
 				printf "%s %s", paint("1", sprintf("%-9s", name[i])), sprintf("%-14s", plan[i])
 				if (nw[i] == 0) printf "%s", paint("2", msg[i] != "" ? msg[i] : "no limits")
@@ -731,10 +730,10 @@ render() {
 				# Title: only the window that will stop you first.
 				b = 0
 				for (k = 1; k <= nw[i]; k++) if (!b || wp[i, k] < wp[i, b]) b = k
-				s = label
+				s = name[i]
 				if (b) {
 					s = s " " (wa[i, b] ? "~" : "") wp[i, b] "%"
-					if (wr[i, b] > now) s = s " " dur(wr[i, b] - now)
+					if (wp[i, b] < 50 && wr[i, b] > now) s = s " " dur(wr[i, b] - now)
 				} else if (state[i] != "ok") s = s " ?"
 				out = out (out == "" ? "" : sep) s
 			}

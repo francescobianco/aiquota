@@ -10,7 +10,7 @@
 **See what's left of your AI subscriptions every time you open a terminal.**
 
 <p align="center">
-  <img src="docs/demo.svg" alt="A terminal whose title bar shows ChatGPT Plus at 12%, Claude Max 5x at 92% and Freebuff at 100%. A full-width grey band shows the same accounts, with a red dot next to ChatGPT and green dots next to the others. The aiquota command lists each subscription with bars and reset times, and the user opens Claude." width="100%">
+  <img src="docs/demo.svg" alt="A terminal whose title bar shows ChatGPT at 12%, Claude at 92% and Freebuff at 100%. A full-width grey band shows the same accounts, with a red dot next to ChatGPT and green dots next to the others. The aiquota command lists each subscription with bars and reset times, and the user opens Claude." width="100%">
 </p>
 
 ChatGPT nearly out until 3 pm? Open Claude instead. AIQuota tells you before you start the coding agent,
@@ -74,7 +74,13 @@ On narrower terminals the band drops the plan names. If it still doesn't fit, ea
 
 ### The title bar
 
-Title bars only show plain text, so there's no color here. For each account you get the window that will stop you first and the time until it resets.
+Title bars only show plain text, so this is a shorter summary with no colors or plan names:
+
+```text
+ChatGPT 12% 1h48m │ Claude 92% │ Freebuff 100%
+```
+
+For each account you get the share left in the window that will stop you first. The time until it resets appears when less than half is left.
 
 A `~` before a value means it may be out of date: the login expired, the network failed, or the window
 has reset since the last successful check.
