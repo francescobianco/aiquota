@@ -17,8 +17,6 @@ not halfway through a task.
 
 ## Install
 
-● ChatGPT Plus <5h 100%> <7d 100%> ┃ ● Claude Max 5x <5h 97%> <7d 92%> ┃ ● Freebuff Free <day 100%>
-
 List your accounts in the order you want them:
 
 ```sh
