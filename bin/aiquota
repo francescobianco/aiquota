@@ -24,6 +24,7 @@ set -u
 umask 077
 
 AIQUOTA_VERSION=0.1.0
+SELF=$0 # here, because zsh changes $0 inside functions
 TAB=$(printf '\t')
 
 CONFIG_FILE=${XDG_CONFIG_HOME:-$HOME/.config}/aiquota/config
@@ -310,7 +311,7 @@ provider_gemini() (
 
 	api=https://cloudcode-pa.googleapis.com/v1internal
 	code=$(printf 'header = "Authorization: Bearer %s"\n' "$token" |
-		http POST "$api:loadCodeAssist" '{"metadata":{"ideType":"GEMINI_CLI","pluginType":"GEMINI"}}')
+		http POST "${api}:loadCodeAssist" '{"metadata":{"ideType":"GEMINI_CLI","pluginType":"GEMINI"}}')
 	[ "$code" = 200 ] || {
 		http_failure "$code" "login rejected, open gemini once to renew it"
 		return
@@ -325,7 +326,7 @@ provider_gemini() (
 	case $project in *[!A-Za-z0-9-]*) project= ;; esac
 
 	code=$(printf 'header = "Authorization: Bearer %s"\n' "$token" |
-		http POST "$api:retrieveUserQuota" "{\"project\":\"$project\"}")
+		http POST "${api}:retrieveUserQuota" "{\"project\":\"$project\"}")
 	[ "$code" = 200 ] || {
 		http_failure "$code" "quota not available for this account"
 		return
@@ -752,10 +753,10 @@ shell_quote() {
 }
 
 self_path() {
-	case $0 in
-	/*) printf '%s' "$0" ;;
-	*/*) printf '%s/%s' "$(cd "$(dirname "$0")" && pwd)" "$(basename "$0")" ;;
-	*) command -v "$0" ;;
+	case $SELF in
+	/*) printf '%s' "$SELF" ;;
+	*/*) printf '%s/%s' "$(cd "$(dirname "$SELF")" && pwd)" "$(basename "$SELF")" ;;
+	*) command -v "$SELF" ;;
 	esac
 }
 
