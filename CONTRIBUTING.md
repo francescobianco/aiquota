@@ -17,7 +17,7 @@ simple: *which of the agents I already pay for can I still use right now?*
 ## Adding an account
 
 1. Write `provider_<name>()` in `bin/aiquota`, using the `name() ( ... )` subshell form.
-2. Add `<name>` to `KNOWN_ACCOUNTS`, and its display name to `pretty_name()` in the renderer.
+2. Add `<name>` to `KNOWN_ACCOUNTS`, and its names to `pretty_name()` and `short_name()` in the renderer.
 3. Add fixtures to `tests/fixtures/`, a URL case to `tests/fake-curl`, and cases to `tests/run.sh`.
 4. Add a row to the table in `README.md`, and say honestly how it was verified.
 

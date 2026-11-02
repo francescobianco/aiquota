@@ -585,13 +585,16 @@ render() {
 	use_unicode && unicode=1
 	depth=0
 	cols=0
-	if [ "$rmode" = line ] && [ "$color" = 1 ]; then
-		depth=$(color_depth)
+	useband=0
+	if [ "$rmode" = line ] && [ "${AIQUOTA_PLAIN:-}" != 1 ] && [ -t 1 ] && [ "${TERM:-dumb}" != dumb ]; then
+		useband=1
+		[ "$color" = 1 ] && depth=$(color_depth)
 		read_cols
 	fi
 	# Bytes mode: the program writes UTF-8 byte by byte, and all other text is ASCII.
 	LC_ALL=C awk -F "$TAB" -v mode="$rmode" -v now="$(now)" -v color="$color" -v uni="$unicode" \
-		-v depth="$depth" -v cols="$cols" -v blank="${LINE_BLANK:-0}" \
+		-v depth="$depth" -v cols="$cols" -v blank="${LINE_BLANK:-0}" -v useband="$useband" \
+		-v short="${AIQUOTA_SHORT_NAMES:-0}" \
 		-v ttl="$AIQUOTA_TTL" '
 	function paint(c, t) { return color ? "\033[" c "m" t "\033[0m" : t }
 	function level(l) { return l >= 50 ? "32" : l >= 20 ? "33" : "31" }
@@ -613,6 +616,7 @@ render() {
 	}
 	# The band: one uniform background. Only the dots carry the traffic-light color.
 	function sgr(fg, bold,   f) {
+		if (depth == 0) return ""
 		if (depth == 256) {
 			f = fg == "ok" ? 46 : fg == "warn" ? 220 : fg == "bad" ? 203 : fg == "none" ? 245 : fg == "dim" ? 248 : 255
 			return "\033[0;" (bold ? "1;" : "") "48;5;236;38;5;" f "m"
@@ -620,23 +624,35 @@ render() {
 		f = fg == "ok" ? 92 : fg == "warn" ? 93 : fg == "bad" ? 91 : (fg == "none" || fg == "dim") ? 37 : 97
 		return "\033[0;" (bold ? "1;" : "") "40;" f "m"
 	}
-	# Draw section i. Level 2 is complete, level 1 drops the plan name.
-	function section(i, lvl,   k, l, low, sev, t, v, d) {
-		low = 101
-		for (k = 1; k <= nw[i]; k++) if (wp[i, k] < low) low = wp[i, k]
-		sev = nw[i] == 0 ? (state[i] == "ok" ? "ok" : "none") : low >= 50 ? "ok" : low >= 20 ? "warn" : "bad"
-		t = sgr(sev, 0) " " (uni ? "\342\227\217" : "*") sgr("", 1) " " name[i]; secw = 3 + length(name[i])
-		if (lvl >= 2 && plan[i] != "") { t = t sgr("", 0) " " plan[i]; secw += 1 + length(plan[i]) }
-		if (nw[i] == 0) {
+	# Draw section i at a level of detail, from 6 (everything) down to 1:
+	#   6  name, plan, all windows   ChatGPT Plus [5h 12% in 1h48m] [7d 61%]
+	#   5  no plan                   ChatGPT [5h 12% in 1h48m] [7d 61%]
+	#   4  short name                GPT [5h 12% in 1h48m] [7d 61%]
+	#   3  tightest window only      GPT [5h 12% in 1h48m]
+	#   2  no reset time             GPT [5h 12%]
+	#   1  just the share left       GPT 12%
+	function section(i, lvl,   k, l, b, sev, t, v, d, n) {
+		b = 0
+		for (k = 1; k <= nw[i]; k++) if (!b || wp[i, k] < wp[i, b]) b = k
+		sev = !b ? (state[i] == "ok" ? "ok" : "none") : wp[i, b] >= 50 ? "ok" : wp[i, b] >= 20 ? "warn" : "bad"
+		n = (short || lvl <= 4) ? abbr[i] : name[i]
+		t = ""; secw = 0
+		if (depth > 0) { t = sgr(sev, 0) " " (uni ? "\342\227\217" : "*"); secw = 2 }
+		t = t sgr("", 1) " " n; secw += 1 + length(n)
+		if (lvl >= 6 && plan[i] != "") { t = t sgr("", 0) " " plan[i]; secw += 1 + length(plan[i]) }
+		if (!b) {
 			v = state[i] == "auth" ? "login expired" : state[i] == "error" ? "unavailable" : "no limits"
-			t = t sgr("dim", 0) " [" v "]"; secw += 3 + length(v)
+			if (lvl <= 1) v = state[i] == "ok" ? "ok" : "?"
+			if (lvl <= 1) { t = t sgr("dim", 0) " " v; secw += 1 + length(v) }
+			else { t = t sgr("dim", 0) " [" v "]"; secw += 3 + length(v) }
 		}
 		for (k = 1; k <= nw[i]; k++) {
-			l = wp[i, k]
-			t = t sgr("dim", 0) " [" wl[i, k] " "; secw += 3 + length(wl[i, k])
-			v = (wa[i, k] ? "~" : "") l "%"
-			t = t sgr("", 1) v; secw += length(v)
-			if (l < 50 && wr[i, k] > now) {
+			if (lvl <= 3 && k != b) continue
+			l = wp[i, k]; v = (wa[i, k] ? "~" : "") l "%"
+			if (lvl <= 1) { t = t sgr("", 1) " " v; secw += 1 + length(v); continue }
+			t = t sgr("dim", 0) " [" wl[i, k] " " sgr("", 1) v
+			secw += 3 + length(wl[i, k]) + length(v)
+			if (lvl >= 3 && l < 50 && wr[i, k] > now) {
 				d = dur(wr[i, k] - now)
 				t = t sgr("dim", 0) (uni ? " \342\206\273" : " in ") d
 				secw += (uni ? 2 : 4) + length(d)
@@ -646,27 +662,48 @@ render() {
 		return t sgr("", 0) " "
 	}
 	# Paint the rest of the row, with the name at the far right if there is room.
-	function fill(used, label,   left, t) {
+	function fill(used,   left, t) {
+		if (depth == 0) return ""
 		t = sgr("", 0); left = cols - 1 - used
-		if (label && cols > 0 && left >= 9) t = t sprintf("%" (left - 8) "s", "") sgr("none", 0) "AIQuota "
+		if (cols > 0 && left >= 9) t = t sprintf("%" (left - 8) "s", "") sgr("none", 0) "AIQuota "
 		else if (cols > 0 && left > 0) t = t sprintf("%" left "s", "")
 		return t "\033[K\033[0m"
 	}
-	function band(   lvl, i, w, row, bar) {
+	# Autowrap is off while printing, so that a wrong width from a terminal or an
+	# IDE clips the row instead of wrapping it.
+	function emit(row, used) { printf "\033[?7l%s%s\033[?7h\n", row, fill(used) }
+	# Always one row: lower the detail until it fits, then hide the last accounts.
+	function band(   lvl, i, w, row, bar, s1, n, more, p) {
 		bar = sgr("dim", 0) (uni ? "\342\224\203" : "|")
-		for (lvl = 2; lvl >= 1; lvl--) {
+		for (lvl = 6; lvl >= 1; lvl--) {
 			row = ""; w = 0
 			for (i = 1; i <= nsec; i++) {
 				row = row (i > 1 ? bar : "") section(vis[i], lvl)
 				w += secw + 1 + (i > 1 ? 1 : 0)
 			}
-			if (cols == 0 || w < cols) { print row fill(w, 1); return }
+			if (cols == 0 || w < cols) { emit(row, w); return }
 		}
-		# Too narrow even when compact: one complete section per row.
+		row = ""; w = 0
 		for (i = 1; i <= nsec; i++) {
-			row = section(vis[i], 2)
-			print row fill(secw + 1, i == 1)
+			s1 = section(vis[i], 1); n = secw + 1 + (i > 1 ? 1 : 0)
+			more = i < nsec ? 1 + length(" +" (nsec - i) " ") : 0
+			if (w + n + more >= cols) break
+			row = row (i > 1 ? bar : "") s1; w += n
 		}
+		if (i <= nsec) {
+			p = " +" (nsec - i + 1) " "
+			row = row (i > 1 ? bar : "") sgr("dim", 0) p; w += length(p) + (i > 1 ? 1 : 0)
+		}
+		emit(row, w)
+	}
+	function short_name(n) {
+		if (n == "claude") return "Cld"
+		if (n == "codex") return "GPT"
+		if (n == "gemini") return "Gem"
+		if (n == "copilot") return "Cop"
+		if (n == "opencode") return "OpC"
+		if (n == "freebuff") return "Fbf"
+		return n
 	}
 	function pretty_name(n) {
 		if (n == "claude") return "Claude"
@@ -679,7 +716,8 @@ render() {
 	}
 	FNR == 1 {
 		c++; f = FILENAME; sub(/.*\//, "", f); sub(/\.tsv$/, "", f)
-		name[c] = pretty_name(f); nw[c] = 0
+		name[c] = pretty_name(f); abbr[c] = short_name(f); nw[c] = 0
+		shown[c] = short ? abbr[c] : name[c]
 	}
 	$1 == "state" { state[c] = $2 }
 	$1 == "plan" { plan[c] = $2 }
@@ -716,7 +754,7 @@ render() {
 				if (nw[i] > 0 && msg[i] != "") printf "%24s%s\n", "", paint("2", msg[i])
 			} else if (mode == "line") {
 				vis[++nsec] = i
-				s = name[i] (plan[i] != "" ? " " plan[i] : "")
+				s = shown[i] (plan[i] != "" ? " " plan[i] : "")
 				if (nw[i] == 0 && state[i] == "auth") s = s " [login expired]"
 				else if (nw[i] == 0 && state[i] == "error") s = s " [unavailable]"
 				for (k = 1; k <= nw[i]; k++) {
@@ -730,7 +768,7 @@ render() {
 				# Title: only the window that will stop you first.
 				b = 0
 				for (k = 1; k <= nw[i]; k++) if (!b || wp[i, k] < wp[i, b]) b = k
-				s = name[i]
+				s = shown[i]
 				if (b) {
 					s = s " " (wa[i, b] ? "~" : "") wp[i, b] "%"
 					if (wp[i, b] < 50 && wr[i, b] > now) s = s " " dur(wr[i, b] - now)
@@ -738,7 +776,7 @@ render() {
 				out = out (out == "" ? "" : sep) s
 			}
 		}
-		if (mode == "line" && depth > 0 && nsec > 0) band()
+		if (mode == "line" && useband && nsec > 0) band()
 		else if (mode == "line" && out != "") print out
 		if (mode == "line" && blank && nsec > 0) print ""
 		if (mode == "title") print (out == "" ? "AIQuota: no subscriptions" : out)
@@ -771,12 +809,20 @@ cmd_init() {
 	accounts=$(shell_quote "$AIQUOTA_DISPLAY")
 	banner=line
 	[ "${NO_BLANK_LINE:-0}" = 1 ] || banner="line --blank-line"
+	short_export=
+	short_fish=
+	if [ "${AIQUOTA_SHORT_NAMES:-0}" = 1 ]; then
+		short_export="export AIQUOTA_SHORT_NAMES=1
+"
+		short_fish="set -gx AIQUOTA_SHORT_NAMES 1
+"
+	fi
 	case ${1:-} in
 	bash)
 		cat <<EOF
 if [[ \$- == *i* ]]; then
 export AIQUOTA_DISPLAY=$accounts
-__aiquota_bin=$bin
+${short_export}__aiquota_bin=$bin
 __aiquota_cache=$cache
 __aiquota_last=-60
 __AIQUOTA_TITLE=
@@ -814,7 +860,7 @@ EOF
 		cat <<EOF
 if [[ -o interactive ]]; then
 export AIQUOTA_DISPLAY=$accounts
-typeset -g __aiquota_bin=$bin
+${short_export}typeset -g __aiquota_bin=$bin
 typeset -g __aiquota_cache=$cache
 typeset -gi __aiquota_last=-60
 __aiquota_precmd() {
@@ -841,7 +887,7 @@ EOF
 		cat <<EOF
 if status is-interactive
 set -gx AIQUOTA_DISPLAY $accounts
-set -g __aiquota_bin $bin
+${short_fish}set -g __aiquota_bin $bin
 set -g __aiquota_cache $cache
 set -g __aiquota_last 0
 function __aiquota_refresh --on-event fish_prompt
@@ -871,7 +917,7 @@ EOF
 case \$- in *i*)
   AIQUOTA_DISPLAY=$accounts
   export AIQUOTA_DISPLAY
-  $bin refresh --background
+  ${short_export}$bin refresh --background
 EOF
 		[ "$AIQUOTA_TITLE" = 1 ] && printf '  %s title\n' "$bin"
 		[ "$AIQUOTA_BANNER" = 1 ] && printf '  %s %s\n' "$bin" "$banner"
@@ -912,6 +958,7 @@ Commands:
 
 Any command accepts --display=a,b to override the configured accounts.
 With install and init, --no-blank-line removes the empty line after the band.
+--short-names uses GPT, Cld, Gem, Cop, OpC and Fbf in the band and the title.
 
 Settings, as environment variables or in $CONFIG_FILE:
   AIQUOTA_TTL         seconds between refreshes (now $AIQUOTA_TTL)
@@ -935,6 +982,7 @@ cmd_install() {
 	# An absolute path, because IDEs started from a desktop menu may have a shorter PATH.
 	me=$(self_path)
 	accounts=$(display_list | awk '{ $1 = $1; gsub(/ /, ","); print }')
+	[ "${AIQUOTA_SHORT_NAMES:-0}" = 1 ] && accounts="$accounts --short-names"
 	[ "${NO_BLANK_LINE:-0}" = 1 ] && accounts="$accounts --no-blank-line"
 	case $shell_name in
 	bash) rc=$HOME/.bashrc ;;
@@ -991,6 +1039,7 @@ main() {
 		case $arg in
 		--display=*) AIQUOTA_DISPLAY=${arg#*=} ;;
 		--no-blank-line) NO_BLANK_LINE=1 ;;
+		--short-names) AIQUOTA_SHORT_NAMES=1 ;;
 		*) set -- "$@" "$arg" ;;
 		esac
 		n=$((n - 1))

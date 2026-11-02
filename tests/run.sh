@@ -162,6 +162,16 @@ suite() {
 	eq "still one line" "$(grep -c 'init bash' "$HOME/.bashrc")" 1
 	aq --display=claude install bash >/dev/null
 	grep -q -- 'no-blank-line' "$HOME/.bashrc" && ko "install should drop --no-blank-line" || ok
+	aq --display=claude --short-names install bash >/dev/null
+	grep -q -- '--display=claude --short-names)"$' "$HOME/.bashrc" && ok || ko "install keeps --short-names"
+	aq --display=claude,codex --short-names refresh --force >/dev/null
+	has "short title" "$(cat "$HOME/.cache/aiquota/title")" "Cld 30%"
+	has "short name in full view stays long" "$(aq --display=claude --short-names)" "Claude"
+	for shell_name in bash zsh sh; do
+		has "$shell_name hook keeps short names" "$(aq init "$shell_name" --display=claude --short-names)" "export AIQUOTA_SHORT_NAMES=1"
+	done
+	has "fish hook keeps short names" "$(aq init fish --display=claude --short-names)" "set -gx AIQUOTA_SHORT_NAMES 1"
+	hasnt "no short names by default" "$(aq init bash --display=claude)" "AIQUOTA_SHORT_NAMES"
 
 	# The empty line after the band.
 	fresh; aq --display=claude,codex >/dev/null
@@ -243,12 +253,31 @@ if script -qec true /dev/null >/dev/null 2>&1 && LC_ALL=C.UTF-8 awk 'BEGIN { exi
 	eq "one row" "$(printf '%s\n' "$out" | wc -l | tr -d ' ')" 1
 	out=$(band 110 xterm-256color C.UTF-8 A=1); hasnt "compact drops plan" "$out" "Max 5x"
 	eq "compact one row" "$(printf '%s\n' "$out" | wc -l | tr -d ' ')" 1
-	out=$(band 40 xterm-256color C.UTF-8 A=1); eq "stacks when narrow" "$(printf '%s\n' "$out" | wc -l | tr -d ' ')" 3
-	has "stack is complete" "$out" "Max 5x"
+	# Never more than one row, whatever the width.
+	for c in 12 16 20 24 30 40 50 60 70 80 90 100 110 120 200; do
+		out=$(band "$c" xterm-256color C.UTF-8 A=1)
+		eq "one row at $c" "$(printf '%s\n' "$out" | wc -l | tr -d ' ')" 1
+		w=$(printf '%s\n' "$out" | width)
+		[ "$w" -lt "$c" ] && ok || ko "fits at $c" "width $w: $out"
+		has "autowrap off at $c" "$out" "$(printf '\033[?7l')"
+		has "autowrap restored at $c" "$out" "$(printf '\033[?7h')"
+	done
+	plain_at() { band "$1" xterm-256color C.UTF-8 A=1 | sed 's/\x1b\[[0-9;?]*[a-zA-Z]//g'; }
+	has "keeps names while they fit" "$(plain_at 110)" "Claude"
+	has "short names when narrow" "$(plain_at 80)" "Cld"
+	has "tightest window when narrower" "$(plain_at 60)" "Cld [7d 30%"
+	has "just the share at the end" "$(plain_at 30)" "Cld 30%"
+	has "hides the last accounts" "$(plain_at 20)" "+"
+	fresh; aq --display=freebuff,claude,codex >/dev/null
+	shorty() { env TERM=xterm-256color LC_ALL=C.UTF-8 script -qec "stty cols 200; dash $BIN --display=freebuff,claude,codex --short-names line" /dev/null </dev/null | tr -d '\r' | sed 's/\x1b\[[0-9;?]*[a-zA-Z]//g'; }
+	out=$(shorty); has "--short-names" "$out" "Cld Max 5x [5h"; hasnt "--short-names only" "$out" "Claude"
+	has "short GPT" "$out" "GPT Plus"; has "short Fbf" "$out" "Fbf Free"
 	out=$(band 120 xterm C.UTF-8 A=1); has "16 colors" "$out" "40;92m"; hasnt "no 256 on 16" "$out" "48;5"
 	out=$(band 120 xterm-256color C A=1); has "ascii separator" "$out" "|"
 	case $out in *[!\ -~]*) non=$(printf '%s' "$out" | LC_ALL=C tr -d '\33\12\40-\176' | wc -c | tr -d ' '); eq "pure ascii" "$non" 0 ;; esac
-	out=$(band 120 xterm-256color C.UTF-8 NO_COLOR=1); hasnt "NO_COLOR" "$out" "$(printf '\033')"
+	out=$(band 120 xterm-256color C.UTF-8 NO_COLOR=1); hasnt "NO_COLOR" "$out" "38;5"; hasnt "NO_COLOR background" "$out" "48;5"
+	out=$(band 20 xterm-256color C.UTF-8 NO_COLOR=1)
+	eq "NO_COLOR one row" "$(printf '%s\n' "$out" | wc -l | tr -d ' ')" 1
 fi
 
 echo "passed: $pass  failed: $fail"

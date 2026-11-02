@@ -70,7 +70,34 @@ Prefer to do it by hand? Put `bin/aiquota` in your `PATH` and add this as the **
 
 An empty line separates the band from your first prompt. To remove it, add `--no-blank-line` to `aiquota install` or to your startup line.
 
-On narrower terminals the band drops the plan names. If it still doesn't fit, each account gets its own row. It uses 256 colors where available and falls back to 16 colors and plain ASCII.
+The band always stays on one row. On narrower terminals it gives up detail in this order:
+
+| Terminal gets narrower | Example |
+| --- | --- |
+| Full | `ChatGPT Plus [5h 12% ↻1h48m] [7d 61%]` |
+| No plan name | `ChatGPT [5h 12% ↻1h48m] [7d 61%]` |
+| Short name | `GPT [5h 12% ↻1h48m] [7d 61%]` |
+| Tightest window only | `GPT [5h 12% ↻1h48m]` |
+| No reset time | `GPT [5h 12%]` |
+| Just the share left | `GPT 12%` |
+| Last accounts hidden | `GPT 12% ┃ +2` |
+
+It uses 256 colors where available and falls back to 16 colors and plain ASCII.
+
+### Short names
+
+Add `--short-names` to `aiquota install` or to your startup line to always use short names in the band and the title:
+
+| Account | `codex` | `claude` | `gemini` | `copilot` | `opencode` | `freebuff` |
+| --- | --- | --- | --- | --- | --- | --- |
+| Name | ChatGPT | Claude | Gemini | Copilot | OpenCode | Freebuff |
+| Short name | GPT | Cld | Gem | Cop | OpC | Fbf |
+
+```text
+ ● GPT Plus [5h 12% ↻1h48m] [7d 61%] ┃ ● Cld Max 5x [5h 99%] [7d 92%] ┃ ● Fbf Free [day 100%]
+```
+
+The full `aiquota` view keeps the complete names.
 
 ### The title bar
 
