@@ -1,5 +1,12 @@
 # AIQuota
 
+[![CI](https://github.com/francescobianco/aiquota/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/francescobianco/aiquota/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/github/license/francescobianco/aiquota)](LICENSE)
+[![Shell: POSIX sh](https://img.shields.io/badge/shell-POSIX%20sh-4EAA25?logo=gnubash&logoColor=white)](bin/aiquota)
+[![Lint: ShellCheck](https://img.shields.io/badge/lint-ShellCheck-4B8BBE)](https://www.shellcheck.net/)
+[![Platform: Linux | macOS](https://img.shields.io/badge/platform-Linux%20%7C%20macOS-555)](#compatibility)
+[![Needs: awk + curl](https://img.shields.io/badge/needs-awk%20%2B%20curl-informational)](#compatibility)
+
 **See what's left of your AI subscriptions every time you open a terminal.**
 
 <p align="center">
