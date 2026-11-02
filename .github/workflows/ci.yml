@@ -1,0 +1,15 @@
+name: CI
+on: [push, pull_request]
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y shellcheck busybox mksh zsh fish
+      - run: shellcheck -s sh -S warning bin/aiquota install.sh tests/run.sh tests/fake-curl
+      - run: sh tests/run.sh dash "busybox sh" "bash --posix" mksh
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sh tests/run.sh sh "bash --posix" zsh

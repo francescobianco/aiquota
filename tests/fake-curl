@@ -1,0 +1,29 @@
+#!/bin/sh
+# Stands in for curl: answers from fixtures and records how it was called.
+# FAKE_<NAME> selects a fixture, FAKE_STATUS forces an HTTP status.
+printf '%s\n' "$*" >>"$FAKE_LOG.argv"
+cat >>"$FAKE_LOG.stdin"
+out=/dev/null
+url=
+while [ $# -gt 0 ]; do
+	case $1 in
+	-o) out=$2; shift ;;
+	-m | -K | -w | -X | -H | -d) shift ;;
+	-*) ;;
+	*) url=$1 ;;
+	esac
+	shift
+done
+case $url in
+*api.anthropic.com*) f=${FAKE_CLAUDE:-claude} ;;
+*chatgpt.com*) f=${FAKE_CODEX:-codex} ;;
+*:loadCodeAssist) f=${FAKE_GEMINI:-gemini-load} ;;
+*:retrieveUserQuota) f=gemini-quota ;;
+*api.github.com*) f=${FAKE_COPILOT:-copilot} ;;
+*opencode.ai*) f=opencode ;;
+*codebuff.com*) f=freebuff ;;
+*) echo "unexpected url: $url" >&2; exit 7 ;;
+esac
+[ "${FAKE_STATUS:-200}" = 000 ] && { printf 000; exit 28; }
+cat "$FAKE_FIXTURES/$f.json" >"$out"
+printf '%s' "${FAKE_STATUS:-200}"

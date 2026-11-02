@@ -1,0 +1,1 @@
+{"usage":{"rolling":{"status":"ok","percent":12.5,"resetsAt":"2099-01-01T05:00:00Z"},"weekly":{"status":"ok","percent":50,"resetsAt":"2099-01-05T00:00:00Z"},"monthly":{"status":"ok","percent":80,"resetsAt":"2099-02-01T00:00:00Z"}}}
